@@ -138,7 +138,8 @@ multi_level_false_positive_test(void)
   const uint64_t nr_all_keys = nr_keys * nr_levels;
 
   uint64_t * const keys = (typeof(keys))malloc(sizeof(keys[0]) * nr_all_keys);
-  struct BloomFilter *bfs[nr_levels] = {NULL};
+  // error: variable-sized object may not be initialized
+  struct BloomFilter *bfs[64] = {NULL};
 
   for (uint64_t l = 0; l < nr_levels; l++) {
     bfs[l] = bloom_create(nr_keys, p);

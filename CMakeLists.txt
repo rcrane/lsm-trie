@@ -223,39 +223,6 @@ target_link_libraries (table_test
 
 
 
-add_executable(lsm_trie
-        src/bloom.c
-        src/bloom.h
-        src/cmap.c
-        src/cmap.h
-        src/coding.c
-        src/coding.h
-        src/conc.c
-        src/conc.h
-        src/db.c
-        src/db.h
-        src/debug.c
-        src/debug.h
-        src/generator.c
-        src/generator.h
-        src/mempool.c
-        src/mempool.h
-        src/rwlock.c
-        src/rwlock.h
-        src/stat.c
-        src/stat.h
-        src/table.c
-        src/table.h
-        )
-
-target_link_libraries (lsm_trie
-        m
-        ${CMAKE_THREAD_LIBS_INIT}
-        ${SSL_LIB}
-        ${CRYPTO_LIB}
-        )
-
-
 
 add_executable(bloom_test
         src/bloom.c

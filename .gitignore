@@ -1,2 +1,16 @@
 cmake-build*
 .idea
+CMakeCache.txt
+CMakeFiles/
+Makefile
+bloom_test
+cm_util
+cmake_install.cmake
+cmap_test
+generator_test
+io_util
+mixed_test
+rwlock_test
+seqio_util
+staged_read
+table_test
