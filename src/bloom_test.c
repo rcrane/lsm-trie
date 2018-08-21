@@ -22,6 +22,7 @@
 #include "mempool.h"
 #include "bloom.h"
 
+#define PROBE_TEST_ITERATIONS UINT64_C(800)
 
 void
 uncached_probe_test(void) {
@@ -29,7 +30,7 @@ uncached_probe_test(void) {
     gettimeofday(&tv, NULL);
     srandom(tv.tv_usec);
     const uint64_t nr_units = 1024 * 256;
-    const uint64_t usize = 4096;
+    const size_t usize = 4096;
     uint8_t *const bf0 = malloc(usize * nr_units);
     struct BloomFilter *bfs[nr_units];
 
@@ -39,7 +40,7 @@ uncached_probe_test(void) {
         bf->bytes = 4000;
         bfs[i] = bf;
     }
-    const uint64_t times = UINT64_C(80000000);
+    const uint64_t times = PROBE_TEST_ITERATIONS;
     struct timeval t0, t1;
     gettimeofday(&t0, NULL);
     for (uint64_t i = 0; i < times; i++) {
