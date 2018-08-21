@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.9)
 project(lsm_trie)
 
+set(CMAKE_BUILD_TYPE Debug)
+
 find_package (Threads)
 find_library(SSL_LIB libssl.a REQUIRED)
 find_library(CRYPTO_LIB libcrypto.a REQUIRED)
