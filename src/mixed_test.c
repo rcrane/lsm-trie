@@ -48,7 +48,7 @@ struct DBParams {
 static const uint64_t nr_configs = 1;
 static struct DBParams pstable[] = {
   //tag    vlen  meta_dir       cm_conf_fn     th  pw   gen        range                     sec   nr
-  {"Dummy", 100, "lsmtrie_tmp", "cm_conf1.txt", 1, 100, "uniform", UINT64_C(0x100000000000), 3000, 100000},
+  {"Dummy", 24, "lsmtrie_tmp", "cm_conf1.txt", 1, 100, "uniform", UINT64_C(100000000000), 60, 100000},
 };
 
 // singleton
@@ -127,7 +127,7 @@ mixed_worker(const struct DBParams * const ps)
       }
     }
 
-    const uint64_t nr_100 = __sync_add_and_fetch(&(__ts.nr_100), 1);
+    /*const uint64_t nr_100 = __sync_add_and_fetch(&(__ts.nr_100), 1);
     if ((nr_100 % ps->nr_report) == 0) {
       pthread_mutex_lock((&__ts.test_lock));
       {
@@ -141,7 +141,7 @@ mixed_worker(const struct DBParams * const ps)
         fflush(stdout);
       }
       pthread_mutex_unlock(&(__ts.test_lock));
-    }
+    }*/
   }
 }
 
