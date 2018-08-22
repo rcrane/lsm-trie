@@ -23,6 +23,7 @@
 #include "mempool.h"
 
 #define MEMPOOL_UNIT (1024 * 1024 * 2)
+#define USING_MALLOC false
 
 struct Mempool {
   bool using_mmap;
@@ -31,7 +32,7 @@ struct Mempool {
   uint8_t * space;
 };
 
-static const bool USING_MALLOC = false;
+
 
   void *
 huge_alloc(const uint64_t cap)
