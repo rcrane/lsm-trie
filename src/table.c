@@ -624,22 +624,23 @@ __compare_hash_order(const void *const p1, const void *const p2, void *const arg
 static bool
 retaining_move_barrels(struct Barrel *const br, struct Barrel *const bl) {
     struct Item *ir[BARREL_SIZE] __attribute__((aligned(8)));
-    const uint16_t nr_r = barrel_to_array(br, ir);
-    qsort_r(ir, nr_r, sizeof(ir[0]), __compare_hash_order, &(br->id));
-    uint64_t i = 0;
+    const uint16_t items_in_barrel = barrel_to_array(br, ir);
+    qsort_r(ir, items_in_barrel, sizeof(ir[0]), __compare_hash_order, &(br->id));
+    uint64_t move_operations = 0;
     while (br->volume > BARREL_CAPACITY) {
-        if (i >= nr_r) {
+        if (move_operations >= items_in_barrel) {
+            // the size of the barrel is still too large but we already moved all items
             return false;
         }
-        barrel_erase(br, ir[i]);
-        barrel_insert(bl, ir[i]);
-        ir[i]->nr_moved++;
-        i++;
+        barrel_erase(br, ir[move_operations]);
+        barrel_insert(bl, ir[move_operations]);
+        ir[move_operations]->nr_moved++;
+        move_operations++;
     }
-    br->nr_out = i;
+    br->nr_out = move_operations; // XXX: indirect cast could lead to data loss!
     br->rid = bl->id;
-    assert(i < nr_r);
-    br->min = item_hash_order(ir[i], br->id);
+    assert(move_operations < items_in_barrel);
+    br->min = item_hash_order(ir[move_operations], br->id);
     return true;
 }
 
