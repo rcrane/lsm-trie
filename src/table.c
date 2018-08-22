@@ -30,7 +30,7 @@
 
 #include "table.h"
 
-#define BARREL_CAP ((BARREL_SIZE - sizeof(struct MetaIndex)))
+#define BARREL_CAPACITY ((BARREL_SIZE - sizeof(struct MetaIndex)))
 #define TABLE_VOLUME_PERCENT ((0.95))
 #define METAINDEX_PERCENT ((0.99))
 #define METAINDEX_MAX_NR ((UINT64_C(2048)))
@@ -214,7 +214,7 @@ rawitem_init(struct RawItem *const raw, const uint8_t *const ptr) {
     raw->vlen = vlen;
     raw->pk = pk;
     raw->pv = pv;
-    raw->limit = ptr + ((long) BARREL_CAP);
+    raw->limit = ptr + ((long) BARREL_CAPACITY);
     return true;
 }
 
@@ -377,7 +377,7 @@ barrel_dump_buffer(struct Barrel *const barrel, uint8_t *const buffer) {
         struct Item *iter = barrel->items[i];
         while (iter) {
             uint8_t *const pnext = item_encode(iter, ptr);
-            assert(pnext <= (buffer + (long) BARREL_CAP));
+            assert(pnext <= (buffer + (long) BARREL_CAPACITY));
             ptr = pnext;
             iter = iter->next;
             nr_items++;
@@ -386,12 +386,12 @@ barrel_dump_buffer(struct Barrel *const barrel, uint8_t *const buffer) {
     assert(ptr >= buffer);
 
     // get ride of valgrind warning
-    if (ptr < (buffer + ((long) BARREL_CAP))) {
-        bzero(ptr, (buffer + (long) BARREL_CAP) - ptr);
+    if (ptr < (buffer + ((long) BARREL_CAPACITY))) {
+        bzero(ptr, (buffer + (long) BARREL_CAPACITY) - ptr);
         ptr = encode_uint16(ptr, 0);
     }
     // put metadata
-    ptr = buffer + ((long) BARREL_CAP);
+    ptr = buffer + ((long) BARREL_CAPACITY);
     struct MetaIndex *const mi = (typeof(mi)) ptr;
     mi->id = barrel->id;
     mi->rid = barrel->rid;
@@ -432,9 +432,9 @@ __find_metaindex(const uint64_t nr_mi, const struct MetaIndex *const mis, const 
 // all bloom-filters should be generated before retaining
 static struct BloomFilter *
 barrel_create_bf(struct Barrel *const barrel, struct Mempool *const mempool) {
-    struct Item *items[BARREL_CAP] = {0};
+    struct Item *items[BARREL_CAPACITY] = {0};
     const uint16_t item_count = barrel_to_array(barrel, items);
-    assert(item_count < BARREL_CAP);
+    assert(item_count < BARREL_CAPACITY);
     struct BloomFilter *const bf = bloom_create(item_count, mempool);
     assert(bf);
 
@@ -487,7 +487,7 @@ table_alloc_new(const double cap_percent, const double mempool_factor) {
     assert(table);
     bzero(table, sizeof(*table));
 
-    const double cap_max = (double) (TABLE_NR_BARRELS * BARREL_CAP);
+    const double cap_max = (double) (TABLE_NR_BARRELS * BARREL_CAPACITY);
     const uint64_t msize = (uint64_t) (cap_max * mempool_factor);
     table->mempool = mempool_new(msize);
 
@@ -627,7 +627,7 @@ retaining_move_barrels(struct Barrel *const br, struct Barrel *const bl) {
     const uint16_t nr_r = barrel_to_array(br, ir);
     qsort_r(ir, nr_r, sizeof(ir[0]), __compare_hash_order, &(br->id));
     uint64_t i = 0;
-    while (br->volume > BARREL_CAP) {
+    while (br->volume > BARREL_CAPACITY) {
         if (i >= nr_r) {
             return false;
         }
@@ -647,7 +647,7 @@ static bool
 retaining_move_sorted(struct Barrel **const barrels) {
     uint16_t lid = 0;
     uint16_t rid = TABLE_NR_BARRELS - 1;
-    while ((barrels[rid]->volume > BARREL_CAP) && (lid < rid)) {
+    while ((barrels[rid]->volume > BARREL_CAPACITY) && (lid < rid)) {
         assert(barrels[rid]->nr_out == 0);
         while (barrels[lid]->nr_out > 0) lid++;
         if (lid >= rid) {
@@ -663,7 +663,7 @@ retaining_move_sorted(struct Barrel **const barrels) {
         rid--;
         lid++;
     }
-    if (barrels[rid]->volume > BARREL_CAP) {
+    if (barrels[rid]->volume > BARREL_CAPACITY) {
         return false;
     } else return true;
 }
@@ -748,7 +748,7 @@ table_retain(struct Table *const table) {
         if (count >= 100) return false;
         struct Barrel *barrels[TABLE_NR_BARRELS];
         retaining_sort_barrels_by_volume(table, barrels);
-        if (barrels[TABLE_NR_BARRELS - 1]->volume <= BARREL_CAP) break; // done
+        if (barrels[TABLE_NR_BARRELS - 1]->volume <= BARREL_CAPACITY) break; // done
         const bool rr = retaining_move_sorted(barrels);
         count++;
         if (rr == false) {
@@ -932,7 +932,7 @@ raw_barrel_fetch_multiple(struct MetaTable *const mt, const uint64_t start_id,
 
 static const struct MetaIndex *
 raw_barrel_metaindex(const uint8_t *const buf) {
-    const uint8_t *const pmi = (typeof(pmi)) (buf + BARREL_CAP);
+    const uint8_t *const pmi = (typeof(pmi)) (buf + BARREL_CAPACITY);
     const struct MetaIndex *const mi = (typeof(mi)) pmi;
     return mi;
 }
