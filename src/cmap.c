@@ -24,7 +24,7 @@
 #include "generator.h"
 #include "cmap.h"
 
-#define CONTAINER_UNIT_SIZE ((TABLE_ALIGN))
+#define CONTAINER_UNIT_SIZE ((TABLE_SIZE))
 
 static int
 containermap_open_raw(const char *const raw_fn, const off_t cap_hint) {

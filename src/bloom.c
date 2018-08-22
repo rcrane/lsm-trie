@@ -222,7 +222,7 @@ bloomtable_free(struct BloomTable * const bt)
 bloomcontainer_build(struct BloomTable * const bt, const int raw_fd,
     const uint64_t off_raw, struct Stat * const stat)
 {
-  const uint64_t pages_cap = TABLE_ALIGN;
+  const uint64_t pages_cap = TABLE_SIZE;
   uint8_t *const pages = huge_alloc(pages_cap);
   assert(pages);
 
@@ -245,13 +245,13 @@ bloomcontainer_build(struct BloomTable * const bt, const int raw_fd,
     const uint64_t boxlen_new = item_len;
     const uint64_t alllen_new = sizeof(uint16_t) + sizeof(uint16_t) + boxlen_new;
     // switch to next page
-    if (off_page + alllen_new > BARREL_ALIGN) {
-      if (off_page < BARREL_ALIGN) {
-        bzero(page + off_page, BARREL_ALIGN - off_page);
+    if (off_page + alllen_new > BARREL_SIZE) {
+      if (off_page < BARREL_SIZE) {
+        bzero(page + off_page, BARREL_SIZE - off_page);
       }
-      page += BARREL_ALIGN;
+      page += BARREL_SIZE;
       index_last[current_page] = i - 1;
-      assert(alllen_new <= BARREL_ALIGN);
+      assert(alllen_new <= BARREL_SIZE);
       // next page
       current_page++;
       off_page = 0;
@@ -270,14 +270,14 @@ bloomcontainer_build(struct BloomTable * const bt, const int raw_fd,
     ptr_bt += item_len;
     off_page += alllen_new;
   }
-  if (off_page < BARREL_ALIGN) {
-    bzero(page + off_page, BARREL_ALIGN - off_page);
+  if (off_page < BARREL_SIZE) {
+    bzero(page + off_page, BARREL_SIZE - off_page);
   }
   index_last[current_page] = bt->nr_bf - 1;
   current_page++;
 
   // write container
-  const ssize_t nr_raw_bytes = (typeof(nr_raw_bytes))(current_page * BARREL_ALIGN);
+  const ssize_t nr_raw_bytes = (typeof(nr_raw_bytes))(current_page * BARREL_SIZE);
   const ssize_t nrb = pwrite(raw_fd, pages, nr_raw_bytes, off_raw);
   assert(nrb == nr_raw_bytes);
   huge_free(pages, pages_cap);
@@ -301,7 +301,7 @@ bloomcontainer_update(struct BloomContainer * const bc, struct BloomTable * cons
     const int new_raw_fd, const uint64_t new_off_raw, struct Stat * const stat)
 {
   assert(bc->nr_barrels == bt->nr_bf);
-  const uint64_t pages_cap = TABLE_ALIGN;
+  const uint64_t pages_cap = TABLE_SIZE;
   uint8_t *const pages = huge_alloc(pages_cap);
   assert(pages);
 
@@ -312,11 +312,11 @@ bloomcontainer_update(struct BloomContainer * const bc, struct BloomTable * cons
   uint64_t off_page = 0;
   uint64_t old_page = 0;
   const uint8_t *ptr_bt = bt->raw_bf;
-  uint8_t old[BARREL_ALIGN] __attribute__((aligned(4096)));
+  uint8_t old[BARREL_SIZE] __attribute__((aligned(4096)));
 
   // load first old page -> old[]
-  const ssize_t nb0 = pread(bc->raw_fd, old, BARREL_ALIGN, bc->off_raw + (old_page * BARREL_ALIGN));
-  assert(nb0 == ((ssize_t)BARREL_ALIGN));
+  const ssize_t nb0 = pread(bc->raw_fd, old, BARREL_SIZE, bc->off_raw + (old_page * BARREL_SIZE));
+  assert(nb0 == ((ssize_t)BARREL_SIZE));
   uint8_t * ptr_old = old;
 
   for (uint64_t i = 0; i < bt->nr_bf; i++) {
@@ -331,8 +331,8 @@ bloomcontainer_update(struct BloomContainer * const bc, struct BloomTable * cons
     if (i > bc->index_last[old_page]) {
       old_page++;
       assert(i <= bc->index_last[old_page]);
-      const ssize_t nbi = pread(bc->raw_fd, old, BARREL_ALIGN, bc->off_raw + (old_page * BARREL_ALIGN));
-      assert(nbi == ((ssize_t)BARREL_ALIGN));
+      const ssize_t nbi = pread(bc->raw_fd, old, BARREL_SIZE, bc->off_raw + (old_page * BARREL_SIZE));
+      assert(nbi == ((ssize_t)BARREL_SIZE));
       ptr_old = old;
     }
 
@@ -351,13 +351,13 @@ bloomcontainer_update(struct BloomContainer * const bc, struct BloomTable * cons
     const uint64_t boxlen_new = boxlen_old + item_len;
     const uint64_t alllen_new = sizeof(uint16_t) + sizeof(uint16_t) + boxlen_new;
 
-    if (off_page + alllen_new > BARREL_ALIGN) { // switch to next page
-      if (off_page < BARREL_ALIGN) {
-        bzero(page + off_page, BARREL_ALIGN - off_page);
+    if (off_page + alllen_new > BARREL_SIZE) { // switch to next page
+      if (off_page < BARREL_SIZE) {
+        bzero(page + off_page, BARREL_SIZE - off_page);
       }
-      page += BARREL_ALIGN;
+      page += BARREL_SIZE;
       index_last[current_page] = i - 1;
-      assert(alllen_new <= BARREL_ALIGN);
+      assert(alllen_new <= BARREL_SIZE);
       // next page
       current_page++;
       off_page = 0;
@@ -378,15 +378,15 @@ bloomcontainer_update(struct BloomContainer * const bc, struct BloomTable * cons
     ptr_old += alllen_old;
     off_page += alllen_new;
   }
-  if (off_page < BARREL_ALIGN) {
-    bzero(page + off_page, BARREL_ALIGN - off_page);
+  if (off_page < BARREL_SIZE) {
+    bzero(page + off_page, BARREL_SIZE - off_page);
   }
 
   index_last[current_page] = bc->nr_barrels - 1;
   current_page++;
 
   // write container
-  const ssize_t nr_raw_bytes = (typeof(nr_raw_bytes))(current_page * BARREL_ALIGN);
+  const ssize_t nr_raw_bytes = (typeof(nr_raw_bytes))(current_page * BARREL_SIZE);
   const ssize_t nrb = pwrite(new_raw_fd, pages, nr_raw_bytes, new_off_raw);
   assert(nrb == nr_raw_bytes);
   huge_free(pages, pages_cap);
@@ -412,8 +412,8 @@ bloomcontainer_fetch_raw(struct BloomContainer * const bc, const uint64_t barrel
   for (uint64_t i = 0; i < bc->nr_index; i++) {
     if (bc->index_last[i] >= barrel_id) {
       // fetch page at [i]
-      const ssize_t nr = pread(bc->raw_fd, buf, BARREL_ALIGN, bc->off_raw + (BARREL_ALIGN * i));
-      assert(nr == ((ssize_t)BARREL_ALIGN));
+      const ssize_t nr = pread(bc->raw_fd, buf, BARREL_SIZE, bc->off_raw + (BARREL_SIZE * i));
+      assert(nr == ((ssize_t)BARREL_SIZE));
       return true;
     }
   }
@@ -488,7 +488,7 @@ bloomcontainer_match_nr(struct BloomContainer * const bc, const uint8_t *const p
   uint64_t
 bloomcontainer_match(struct BloomContainer * const bc, const uint32_t index, const uint64_t hv)
 {
-  uint8_t boxpage[BARREL_ALIGN] __attribute__((aligned(4096)));
+  uint8_t boxpage[BARREL_SIZE] __attribute__((aligned(4096)));
   const bool rf = bloomcontainer_fetch_raw(bc, (uint64_t)index, boxpage);
   assert(rf);
   uint8_t *ptr = boxpage;

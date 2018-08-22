@@ -59,7 +59,7 @@ struct VirtualContainer {
  */
 
 #define BC_START_BIT      ((UINT64_C(12)))
-#define DB_COMPACTION_CAP (((uint64_t)(TABLE_ALIGN * 7.2)))
+#define DB_COMPACTION_CAP (((uint64_t)(TABLE_SIZE * 7.2)))
 // NR = 8
 #define DB_COMPACTION_NR         ((UINT64_C(8)))
 #define DB_COMPACTION_THREADS_NR ((UINT64_C(1)))
@@ -579,7 +579,7 @@ db_table_dump(struct DB *const db, struct Table *const table, const uint64_t sta
     const bool rdm = table_dump_meta(table, metafn, off_main);
     assert(rdm);
     db_log_diff(db, sec0, "DUMP @%" PRIu64 " [%8" PRIx64 " #%08" PRIx64 "] [%08"PRIu64"] %s",
-                start_bit / 3, mtid, off_main / TABLE_ALIGN, nr_items, buffer);
+                start_bit / 3, mtid, off_main / TABLE_SIZE, nr_items, buffer);
     return mtid;
 }
 
@@ -609,7 +609,7 @@ compaction_initial(struct Compaction *const comp, struct DB *const db,
     comp->cm_to = db->cms[comp->sub_bit / 3];
 
     // alloc arenas
-    uint8_t *const arena = huge_alloc(TABLE_ALIGN);
+    uint8_t *const arena = huge_alloc(TABLE_SIZE);
     assert(arena);
     comp->arena = arena;
     // old mts & mtids
@@ -643,7 +643,7 @@ compaction_feed(struct Compaction *const comp) {
     struct MetaTable *const mt = comp->mts_old[comp->feed_id];
     if (token >= TABLE_NR_BARRELS) return true;
     const uint64_t nr_fetch = ((TABLE_NR_BARRELS - token) < DB_FEED_UNIT) ? (TABLE_NR_BARRELS - token) : DB_FEED_UNIT;
-    uint8_t *const arena = comp->arena + (token * BARREL_ALIGN);
+    uint8_t *const arena = comp->arena + (token * BARREL_SIZE);
     assert((token + nr_fetch) <= TABLE_NR_BARRELS);
     metatable_feed_barrels_to_tables(mt, token, nr_fetch, arena, comp->tables, compaction_select_table, comp->sub_bit);
     return true;
@@ -665,10 +665,10 @@ compaction_feed_all(struct Compaction *const comp) {
         // parallel feed threads
         conc_fork_reduce(DB_FEED_NR, thread_compaction_feed, comp);
         db_log_diff(comp->db, sec0, "FEED @%" PRIu64 " [%8" PRIx64 " #%08" PRIx64 "]",
-                    comp->start_bit / 3, comp->mts_old[i]->mtid, comp->mts_old[i]->mfh.off / TABLE_ALIGN);
+                    comp->start_bit / 3, comp->mts_old[i]->mtid, comp->mts_old[i]->mfh.off / TABLE_SIZE);
     }
     // free feed arenas
-    huge_free(comp->arena, TABLE_ALIGN);
+    huge_free(comp->arena, TABLE_SIZE);
 }
 
 static void *
@@ -723,7 +723,7 @@ compaction_update_bc(struct DB *const db, struct BloomContainer *const old_bc, s
     const bool r = db_dump_bloomcontainer_meta(db, mtid_bc, new_bc);
     assert(r);
     db_log_diff(db, sec0, "BC   *%1" PRIu64 " [%8" PRIx64 " #%08" PRIx64 "] {%4" PRIu32 "}",
-                count, mtid_bc, off_bc / TABLE_ALIGN, new_bc->nr_index);
+                count, mtid_bc, off_bc / TABLE_SIZE, new_bc->nr_index);
     return new_bc;
 }
 

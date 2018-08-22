@@ -26,15 +26,15 @@ struct KeyValue {
 // a Prime number
 #define TABLE_NR_BARRELS  ((UINT64_C(8191)))
 // 4KB
-#define BARREL_ALIGN      ((UINT64_C(4096)))
+#define BARREL_SIZE      ((UINT64_C(4096)))
 // 32MB
-#define TABLE_ALIGN       ((BARREL_ALIGN * TABLE_MAX_BARRELS))
+#define TABLE_SIZE       ((BARREL_SIZE * TABLE_MAX_BARRELS))
 // 8MB
 #define TABLE_NR_IO       ((UINT64_C(2048)))
 
 #define TABLE_ILOCKS_NR ((UINT64_C(64)))
 
-struct Table {
+struct Table { // HTable
   uint64_t volume;
   uint64_t capacity;
   struct Mempool * mempool; // store items

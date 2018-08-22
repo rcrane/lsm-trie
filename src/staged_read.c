@@ -49,7 +49,7 @@ struct TestState {
   struct DB * db;
   uint64_t time_finish;
   uint64_t nr_all;
-  uint8_t buf[BARREL_ALIGN];
+  uint8_t buf[BARREL_SIZE];
   uint32_t * latency;
   bool test_running;
   uint64_t token;
@@ -205,7 +205,7 @@ staged_test(const struct DBParams * const p)
   __ts.gc = generator_new_counter(0);
   __ts.db = db_touch(p->meta_dir, p->cm_conf_fn);
   assert(__ts.db);
-  memset(__ts.buf, 0x5au, BARREL_ALIGN);
+  memset(__ts.buf, 0x5au, BARREL_SIZE);
   staged_worker(p);
   generator_destroy(__ts.gc);
   db_close(__ts.db);
