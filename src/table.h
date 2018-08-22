@@ -24,7 +24,7 @@ struct KeyValue {
 
 #define TABLE_MAX_BARRELS ((UINT64_C(8192)))
 // a Prime number
-#define TABLE_NR_BARRELS  ((UINT64_C(8191)))
+#define BARRELS_PER_TABLE  ((UINT64_C(8191)))
 // 4KB
 #define BARREL_SIZE      ((UINT64_C(4096)))
 // 32MB

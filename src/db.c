@@ -641,10 +641,10 @@ compaction_feed(struct Compaction *const comp) {
     const uint64_t token = __sync_fetch_and_add(&(comp->feed_token), DB_FEED_UNIT);
     assert(token < TABLE_MAX_BARRELS);
     struct MetaTable *const mt = comp->mts_old[comp->feed_id];
-    if (token >= TABLE_NR_BARRELS) return true;
-    const uint64_t nr_fetch = ((TABLE_NR_BARRELS - token) < DB_FEED_UNIT) ? (TABLE_NR_BARRELS - token) : DB_FEED_UNIT;
+    if (token >= BARRELS_PER_TABLE) return true;
+    const uint64_t nr_fetch = ((BARRELS_PER_TABLE - token) < DB_FEED_UNIT) ? (BARRELS_PER_TABLE - token) : DB_FEED_UNIT;
     uint8_t *const arena = comp->arena + (token * BARREL_SIZE);
-    assert((token + nr_fetch) <= TABLE_NR_BARRELS);
+    assert((token + nr_fetch) <= BARRELS_PER_TABLE);
     metatable_feed_barrels_to_tables(mt, token, nr_fetch, arena, comp->tables, compaction_select_table, comp->sub_bit);
     return true;
 }
@@ -983,7 +983,7 @@ thread_active_dumper(void *ptr) {
             const uint64_t mtid = db_table_dump(db, table1, 0);
             struct MetaTable *const mt = db_load_metatable(db, mtid, db->cms[0]->raw_fd, false);
             assert(mt);
-            stat_inc_n(&(db->stat.nr_write[0]), TABLE_NR_BARRELS);
+            stat_inc_n(&(db->stat.nr_write[0]), BARRELS_PER_TABLE);
             mt->bt = table1->bt;
             // mark active_table[1]->bt == NULL before free it
 

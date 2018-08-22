@@ -86,7 +86,7 @@ item_hash_bf(const struct Item *const item) {
 
 static uint32_t
 __hash_order(const uint8_t *const hash, const uint16_t bid) {
-    assert(bid < TABLE_NR_BARRELS);
+    assert(bid < BARRELS_PER_TABLE);
     const uint32_t *const phv = (typeof(phv)) (&(hash[12]));
     const uint32_t hv = *phv;
     const uint16_t shift = bid % (sizeof(hv) * 8); // % 32
@@ -451,7 +451,7 @@ table_select_barrel(const uint8_t *const hash) {
     // using the 4~7 bits of the hash value
     const uint8_t *const start_byte = &(hash[4]);
     const uint64_t hv = *((uint64_t *) start_byte);
-    const uint16_t bid = (typeof(bid)) (hv % TABLE_NR_BARRELS);
+    const uint16_t bid = (typeof(bid)) (hv % BARRELS_PER_TABLE);
     return bid;
 }
 
@@ -462,7 +462,7 @@ table_initial(struct Table *const table, const uint64_t capacity) {
     table->barrels = (typeof(table->barrels)) mempool_alloc(table->mempool, main_space);
     if (table->barrels == NULL) { return false; }
     bzero(table->barrels, main_space);
-    for (uint16_t i = 0u; i < TABLE_NR_BARRELS; i++) {
+    for (uint16_t i = 0u; i < BARRELS_PER_TABLE; i++) {
         table->barrels[i].id = i;
         table->barrels[i].rid = i;
     }
@@ -487,7 +487,7 @@ table_alloc_new(const double cap_percent, const double mempool_factor) {
     assert(table);
     bzero(table, sizeof(*table));
 
-    const double cap_max = (double) (TABLE_NR_BARRELS * BARREL_CAPACITY);
+    const double cap_max = (double) (BARRELS_PER_TABLE * BARREL_CAPACITY);
     const uint64_t msize = (uint64_t) (cap_max * mempool_factor);
     table->mempool = mempool_new(msize);
 
@@ -566,11 +566,11 @@ table_insert_kv_safe(struct Table *const table, const struct KeyValue *const kv)
 bool
 table_build_bloomtable(struct Table *const table) {
     assert(table->bt == NULL);
-    struct BloomFilter *bfs[TABLE_NR_BARRELS];
-    for (uint64_t i = 0; i < TABLE_NR_BARRELS; i++) {
+    struct BloomFilter *bfs[BARRELS_PER_TABLE];
+    for (uint64_t i = 0; i < BARRELS_PER_TABLE; i++) {
         bfs[i] = barrel_create_bf(&(table->barrels[i]), table->mempool);
     }
-    struct BloomTable *const bt = bloomtable_build(bfs, TABLE_NR_BARRELS);
+    struct BloomTable *const bt = bloomtable_build(bfs, BARRELS_PER_TABLE);
     assert(bt);
     table->bt = bt;
     return true;
@@ -599,10 +599,10 @@ __compare_volume(const void *const p1, const void *const p2) {
 
 static void
 retaining_sort_barrels_by_volume(struct Table *const table, struct Barrel **barrels) {
-    for (uint64_t i = 0; i < TABLE_NR_BARRELS; i++) {
+    for (uint64_t i = 0; i < BARRELS_PER_TABLE; i++) {
         barrels[i] = &(table->barrels[i]);
     }
-    qsort(barrels, TABLE_NR_BARRELS, sizeof(barrels[0]), __compare_volume);
+    qsort(barrels, BARRELS_PER_TABLE, sizeof(barrels[0]), __compare_volume);
 }
 
 static int
@@ -646,7 +646,7 @@ retaining_move_barrels(struct Barrel *const br, struct Barrel *const bl) {
 static bool
 retaining_move_sorted(struct Barrel **const barrels) {
     uint16_t lid = 0;
-    uint16_t rid = TABLE_NR_BARRELS - 1;
+    uint16_t rid = BARRELS_PER_TABLE - 1;
     while ((barrels[rid]->volume > BARREL_CAPACITY) && (lid < rid)) {
         assert(barrels[rid]->nr_out == 0);
         while (barrels[lid]->nr_out > 0) lid++;
@@ -686,7 +686,7 @@ static uint64_t
 retaining_nr_todo(struct Table *const table) {
     uint64_t nr_all = 0;
     uint64_t nr_out = 0;
-    for (uint64_t i = 0; i < TABLE_NR_BARRELS; i++) {
+    for (uint64_t i = 0; i < BARRELS_PER_TABLE; i++) {
         nr_all += barrel_count_lookup(&(table->barrels[i]));
         nr_out += table->barrels[i].nr_out;
     }
@@ -712,11 +712,11 @@ __compare_id(const void *const p1, const void *const p2) {
 static void
 retaining_build_metaindex(struct Table *const table) {
     struct Barrel *barrels[TABLE_MAX_BARRELS];
-    for (uint64_t i = 0; i < TABLE_NR_BARRELS; i++) {
+    for (uint64_t i = 0; i < BARRELS_PER_TABLE; i++) {
         barrels[i] = &(table->barrels[i]);
     }
     // sort by out, big->small
-    qsort(barrels, TABLE_NR_BARRELS, sizeof(barrels[0]), __compare_out);
+    qsort(barrels, BARRELS_PER_TABLE, sizeof(barrels[0]), __compare_out);
     uint64_t nr_todo = (typeof(nr_todo)) retaining_nr_todo(table);
     struct MetaIndex mi_buf[TABLE_MAX_BARRELS];
     bzero(mi_buf, sizeof(mi_buf[0]) * TABLE_MAX_BARRELS);
@@ -746,9 +746,9 @@ table_retain(struct Table *const table) {
     uint64_t count = 0;
     while (true) {
         if (count >= 100) return false;
-        struct Barrel *barrels[TABLE_NR_BARRELS];
+        struct Barrel *barrels[BARRELS_PER_TABLE];
         retaining_sort_barrels_by_volume(table, barrels);
-        if (barrels[TABLE_NR_BARRELS - 1]->volume <= BARREL_CAPACITY) break; // done
+        if (barrels[BARRELS_PER_TABLE - 1]->volume <= BARREL_CAPACITY) break; // done
         const bool rr = retaining_move_sorted(barrels);
         count++;
         if (rr == false) {
@@ -762,8 +762,8 @@ table_retain(struct Table *const table) {
 uint64_t
 table_dump_barrels(struct Table *const table, const int fd, const uint64_t off) {
     uint64_t nr_all_items = 0;
-    for (uint64_t j = 0; j < TABLE_NR_BARRELS; j += TABLE_NR_IO) {
-        const uint64_t nr_dump = ((j + TABLE_NR_IO) > TABLE_NR_BARRELS) ? (TABLE_NR_BARRELS - j) : TABLE_NR_IO;
+    for (uint64_t j = 0; j < BARRELS_PER_TABLE; j += TABLE_NR_IO) {
+        const uint64_t nr_dump = ((j + TABLE_NR_IO) > BARRELS_PER_TABLE) ? (BARRELS_PER_TABLE - j) : TABLE_NR_IO;
         for (uint64_t i = 0; i < nr_dump; i++) {
             uint8_t *const ptr = &(table->io_buffer[BARREL_SIZE * i]);
             const uint64_t nr_items = barrel_dump_buffer(&(table->barrels[j + i]), ptr);
@@ -818,7 +818,7 @@ table_analysis_verbose(struct Table *const table, FILE *const out) {
     uint64_t x_volume_all = 0;
     uint64_t count_lookup = 0;
     uint64_t count_items = 0;
-    for (uint64_t bid = 0; bid < TABLE_NR_BARRELS; bid++) {
+    for (uint64_t bid = 0; bid < BARRELS_PER_TABLE; bid++) {
         struct Barrel *const barrel = &(table->barrels[bid]);
         uint16_t volume = 0;
         for (uint64_t hid = 0; hid < ITEMS_PER_BARREL; hid++) {
@@ -887,7 +887,7 @@ table_show(struct Table *const table, FILE *const fo) {
     char buffer[1024];
     table_analysis_short(table, buffer);
     fprintf(fo, "%s\n", buffer);
-    for (uint64_t i = 0; i < TABLE_NR_BARRELS; i++) {
+    for (uint64_t i = 0; i < BARRELS_PER_TABLE; i++) {
         barrel_show(&(table->barrels[i]), fo);
     }
 }
@@ -966,7 +966,7 @@ metatable_load(const char *const metafn, const int raw_fd, const bool load_bf, s
     assert(nh == 1);
     // load overflowner metadata
     const uint64_t nr_mi = mt->mfh.nr_mi;
-    assert(nr_mi <= TABLE_NR_BARRELS);
+    assert(nr_mi <= BARRELS_PER_TABLE);
     if (nr_mi) {
         struct MetaIndex *const mis = (typeof(mis)) malloc(sizeof(*mis) * nr_mi);
         assert(mis);
@@ -994,7 +994,7 @@ metatable_load(const char *const metafn, const int raw_fd, const bool load_bf, s
 static struct KeyValue *
 metatable_recursive_lookup(struct MetaTable *const mt, const uint16_t bid, uint8_t *const buf,
                            const uint16_t klen, const uint8_t *const key, const uint8_t *const hash) {
-    assert(bid < TABLE_NR_BARRELS);
+    assert(bid < BARRELS_PER_TABLE);
     const uint32_t hash32 = __hash_order(hash, bid);
 
     const struct MetaIndex *const mi0 = __find_metaindex(mt->mfh.nr_mi, mt->mis, bid);
@@ -1063,7 +1063,7 @@ bool
 metatable_feed_barrels_to_tables(struct MetaTable *const mt, const uint16_t start,
                                  const uint16_t nr, uint8_t *const arena, struct Table *const *const tables,
                                  uint64_t (*select_table)(const uint8_t *const, const uint64_t), const uint64_t arg2) {
-    assert((start + nr) <= TABLE_NR_BARRELS);
+    assert((start + nr) <= BARRELS_PER_TABLE);
     raw_barrel_fetch_multiple(mt, start, nr, arena);
     for (uint64_t i = 0; i < nr; i++) {
         uint8_t *const raw = &(arena[i * BARREL_SIZE]);
