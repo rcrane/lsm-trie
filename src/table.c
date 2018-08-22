@@ -147,11 +147,11 @@ item_erase(struct Item **const items, struct Item *const item) {
 static inline uint16_t
 item_insert(struct Item **const items, struct Item *const item) {
     // erase (one) identical item
-    const uint16_t victim_volume = item_erase(items, item);
+    const uint16_t victim_size = item_erase(items, item);
     // insert in front
     item->next = *items;
     (*items) = item;
-    return victim_volume;
+    return victim_size;
 }
 
 static struct Item *
@@ -278,8 +278,8 @@ rawitem_to_item(const struct RawItem *const ri, struct Mempool *const mempool, c
     uint8_t buf[16];
     uint8_t *const p1 = encode_uint16(buf, item->klen);
     uint8_t *const p2 = encode_uint16(p1, item->vlen);
-    const uint16_t volume = item->klen + item->vlen + (p2 - buf);
-    item->current_size = volume;
+    const uint16_t size = item->klen + item->vlen + (p2 - buf);
+    item->current_size = size;
     return item;
 }
 
@@ -348,16 +348,16 @@ barrel_to_array(struct Barrel *const barrel, struct Item **const items) {
 static inline void
 barrel_erase(struct Barrel *const barrel, struct Item *const item) {
     const uint32_t hid = item_hash_ht(item);
-    const uint16_t volume = item_erase(&(barrel->items[hid]), item);
-    barrel->current_size -= volume;
+    const uint16_t size = item_erase(&(barrel->items[hid]), item);
+    barrel->current_size -= size;
 }
 
 static inline void
 barrel_insert(struct Barrel *const barrel, struct Item *const item) {
     const uint32_t hid = item_hash_ht(item);
-    const uint16_t victim_volume = item_insert(&(barrel->items[hid]), item);
+    const uint16_t victim_size = item_insert(&(barrel->items[hid]), item);
     barrel->current_size += item->current_size;
-    barrel->current_size -= victim_volume;
+    barrel->current_size -= victim_size;
 }
 
 // keyhead: need kv (only need key), klen
@@ -467,7 +467,7 @@ table_initial(struct Table *const table, const uint64_t capacity) {
         table->barrels[i].rid = i;
     }
 
-    table->volume = 0;
+    table->current_size = 0;
     table->capacity = capacity;
     table->bt = NULL;
     if (table->io_buffer == NULL) {
@@ -516,7 +516,7 @@ table_free(struct Table *const table) {
 
 bool
 table_full(const struct Table *const table) {
-    return (table->volume >= table->capacity) ? true : false;
+    return (table->current_size >= table->capacity) ? true : false;
 }
 
 // insert anyway
@@ -528,7 +528,7 @@ table_insert_item(struct Table *const table, struct Item *const item) {
     const uint16_t vol0 = barrel->current_size;
     barrel_insert(barrel, item);
     const uint16_t vol1 = barrel->current_size;
-    table->volume += (vol1 - vol0);
+    table->current_size += (vol1 - vol0);
 }
 
 // thread safe insert (for compaction feed)
@@ -540,7 +540,7 @@ table_insert_item_mt(struct Table *const table, struct Item *const item) {
     const uint16_t vol0 = barrel->current_size;
     barrel_insert(barrel, item);
     const uint16_t vol1 = barrel->current_size;
-    __sync_add_and_fetch(&(table->volume), (vol1 - vol0));
+    __sync_add_and_fetch(&(table->current_size), (vol1 - vol0));
     pthread_mutex_unlock(&(table->ilocks[barrel_id % TABLE_ILOCKS_NR]));
 }
 
@@ -585,7 +585,7 @@ table_lookup(struct Table *const table, const uint16_t klen,
 }
 
 static inline int
-__compare_volume(const void *const p1, const void *const p2) {
+__compare_size(const void *const p1, const void *const p2) {
     struct Barrel *const b1 = *((typeof(&b1)) p1);
     struct Barrel *const b2 = *((typeof(&b2)) p2);
     if (b1->current_size < b2->current_size) {
@@ -598,11 +598,11 @@ __compare_volume(const void *const p1, const void *const p2) {
 }
 
 static void
-retaining_sort_barrels_by_volume(struct Table *const table, struct Barrel **barrels) {
+retaining_sort_barrels_by_size(struct Table *const table, struct Barrel **barrels) {
     for (uint64_t i = 0; i < BARRELS_PER_TABLE; i++) {
         barrels[i] = &(table->barrels[i]);
     }
-    qsort(barrels, BARRELS_PER_TABLE, sizeof(barrels[0]), __compare_volume);
+    qsort(barrels, BARRELS_PER_TABLE, sizeof(barrels[0]), __compare_size);
 }
 
 static int
@@ -748,7 +748,7 @@ table_retain(struct Table *const table) {
     while (true) {
         if (count >= 100) return false;
         struct Barrel *barrels[BARRELS_PER_TABLE];
-        retaining_sort_barrels_by_volume(table, barrels);
+        retaining_sort_barrels_by_size(table, barrels);
         if (barrels[BARRELS_PER_TABLE - 1]->current_size <= BARREL_CAPACITY) break; // done
         const bool rr = retaining_move_sorted(barrels);
         count++;
@@ -789,7 +789,7 @@ table_dump_meta(struct Table *const table, const char *const metafn, const uint6
     // dump header
     struct MetaFileHeader mfh;
     mfh.off = off;
-    mfh.volume = table->volume;
+    mfh.volume = table->current_size;
     mfh.nr_mi = table->nr_mi;
     const size_t nw = fwrite(&mfh, sizeof(mfh), 1, fo);
     assert(nw == 1);
@@ -851,11 +851,13 @@ table_analysis_verbose(struct Table *const table, FILE *const out) {
         x_volume_all += volume;
         if (volume > x_volume_max) x_volume_max = volume;
 
+        // XXX x_volume_max not used!
+
         count_lookup += barrel_count_lookup(barrel);
         count_items += barrel_count(barrel);
     }
     assert(nr_mi == table->nr_mi);
-    assert(x_volume_all == table->volume);
+    assert(x_volume_all == table->current_size);
     assert(x_moved_all == (x_covered_all + x_lost_all));
     const double avg_read = ((double) (count_lookup - x_covered_all)) / ((double) count_items);
 
@@ -864,7 +866,7 @@ table_analysis_verbose(struct Table *const table, FILE *const out) {
             fprintf(out, "M[%2"PRIu16"] %4"PRIu32"\n", i, x_moved[i]);
         }
     }
-    fprintf(out, "current_size %"PRIu64" capacity: %"PRIu64"\n", table->volume, table->capacity);
+    fprintf(out, "current_size %"PRIu64" capacity: %"PRIu64"\n", table->current_size, table->capacity);
     fprintf(out, "nr_mi %"PRIu64" nr_meta %"PRIu64"\n", table->nr_mi, nr_meta);
     fprintf(out, "covered %"PRIu64" lost %"PRIu64"\n", x_covered_all, x_lost_all);
     fprintf(out, "lookup %"PRIu64" items %"PRIu64" avg_read %.3lf\n", count_lookup, count_items, avg_read);
@@ -875,12 +877,12 @@ table_analysis_short(struct Table *const table, char *const buffer) {
     if (table->nr_mi) {
         assert(table->mis);
     }
-    const double vp = ((double) table->volume) * 100.0 / ((double) TABLE_SIZE);
+    const double vp = ((double) table->current_size) * 100.0 / ((double) TABLE_SIZE);
     const double ik = ((double) (table->nr_mi * sizeof(table->mis[0]))) / 1024.0;
     const uint32_t bt_bytes = table->bt ? table->bt->nr_bytes : 0u;
     const double bk = table->bt ? (((double) (table->bt->nr_bytes)) / 1024.0) : 0.0;
     sprintf(buffer, "%8"PRIu64" (%5.2lf%%) %4"PRIu64" (%.1lfKB) %7"PRIu32" (%.1lfKB)",
-            table->volume, vp, table->nr_mi, ik, bt_bytes, bk);
+            table->current_size, vp, table->nr_mi, ik, bt_bytes, bk);
 }
 
 void

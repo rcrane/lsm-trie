@@ -946,7 +946,7 @@ thread_active_dumper(void *ptr) {
     while (db->active_table[0]) {
         // active
         pthread_mutex_lock(&(db->mutex_active));
-        if ((db->active_table[0]->volume == 0) && db->closing) {
+        if ((db->active_table[0]->current_size == 0) && db->closing) {
             pthread_mutex_unlock(&(db->mutex_active));
             table_free(db->active_table[0]);
             db->active_table[0] = NULL;
@@ -975,7 +975,7 @@ thread_active_dumper(void *ptr) {
             const uint64_t ticket2 = rwlock_writer_lock(&(db->rwlock));
             db->active_table[1] = NULL;
             rwlock_writer_unlock(&(db->rwlock), ticket2);
-        } else if (table1->volume > 0) {
+        } else if (table1->current_size > 0) {
             // build bt
             const bool rbt = table_build_bloomtable(table1);
             assert(rbt);

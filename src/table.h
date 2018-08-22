@@ -35,7 +35,7 @@ struct KeyValue {
 #define TABLE_ILOCKS_NR ((UINT64_C(64)))
 
 struct Table { // HTable
-  uint64_t volume;
+  uint64_t current_size;
   uint64_t capacity;
   struct Mempool * mempool; // store items
   struct Barrel *barrels;
