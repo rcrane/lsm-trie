@@ -54,10 +54,10 @@ struct RawItem {
     const uint8_t *limit;
 };
 
-#define BARREL_NR_HT ((64))
+#define ITEMS_PER_BARREL ((64))
 
-struct Barrel {  // a barrel of items (bucket?)
-    struct Item *items[BARREL_NR_HT];
+struct Barrel {  // a barrel of items (bucket of key-value items)
+    struct Item *items[ITEMS_PER_BARREL];
     uint16_t volume;
     uint16_t id;
     uint16_t rid; // == id if no overflown
@@ -103,7 +103,7 @@ item_hash_order(const struct Item *const item, const uint16_t bid) {
 static uint32_t
 __hash_ht(const uint8_t *const hash) {
     const uint32_t *const phv = (typeof(phv)) (&(hash[16]));
-    const uint32_t hv = (*phv) % BARREL_NR_HT;
+    const uint32_t hv = (*phv) % ITEMS_PER_BARREL;
     return hv;
 }
 
@@ -309,7 +309,7 @@ keyvalue_to_item(const struct KeyValue *const kv, struct Mempool *const mempool)
 static uint16_t
 barrel_count(struct Barrel *const barrel) {
     uint16_t count = 0;
-    for (uint64_t i = 0; i < BARREL_NR_HT; i++) {
+    for (uint64_t i = 0; i < ITEMS_PER_BARREL; i++) {
         struct Item *iter = barrel->items[i];
         while (iter) {
             count++;
@@ -322,7 +322,7 @@ barrel_count(struct Barrel *const barrel) {
 static uint16_t
 barrel_count_lookup(struct Barrel *const barrel) {
     uint16_t count = 0;
-    for (uint64_t i = 0; i < BARREL_NR_HT; i++) {
+    for (uint64_t i = 0; i < ITEMS_PER_BARREL; i++) {
         struct Item *iter = barrel->items[i];
         while (iter) {
             count += (1 + iter->nr_moved);
@@ -335,7 +335,7 @@ barrel_count_lookup(struct Barrel *const barrel) {
 static uint16_t
 barrel_to_array(struct Barrel *const barrel, struct Item **const items) {
     uint16_t item_count = 0;
-    for (uint64_t i = 0; i < BARREL_NR_HT; i++) {
+    for (uint64_t i = 0; i < ITEMS_PER_BARREL; i++) {
         struct Item *iter = barrel->items[i];
         while (iter) {
             items[item_count++] = iter;
@@ -373,7 +373,7 @@ barrel_dump_buffer(struct Barrel *const barrel, uint8_t *const buffer) {
     // serialize data
     uint8_t *ptr = buffer;
     uint16_t nr_items = 0;
-    for (uint64_t i = 0; i < BARREL_NR_HT; i++) {
+    for (uint64_t i = 0; i < ITEMS_PER_BARREL; i++) {
         struct Item *iter = barrel->items[i];
         while (iter) {
             uint8_t *const pnext = item_encode(iter, ptr);
@@ -821,7 +821,7 @@ table_analysis_verbose(struct Table *const table, FILE *const out) {
     for (uint64_t bid = 0; bid < TABLE_NR_BARRELS; bid++) {
         struct Barrel *const barrel = &(table->barrels[bid]);
         uint16_t volume = 0;
-        for (uint64_t hid = 0; hid < BARREL_NR_HT; hid++) {
+        for (uint64_t hid = 0; hid < ITEMS_PER_BARREL; hid++) {
             struct Item *iter = barrel->items[hid];
             while (iter) {
                 x_moved[iter->nr_moved]++;
