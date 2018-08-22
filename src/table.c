@@ -646,6 +646,8 @@ retaining_move_barrels(struct Barrel *const br, struct Barrel *const bl) {
 
 static bool
 retaining_move_sorted(struct Barrel **const barrels) {
+    // redistribute items accross barrels to reduce overflow (more space used than capacity available)
+
     uint16_t lid = 0;
     uint16_t rid = BARRELS_PER_TABLE - 1;
     while ((barrels[rid]->current_size > BARREL_CAPACITY) && (lid < rid)) {
@@ -659,12 +661,14 @@ retaining_move_sorted(struct Barrel **const barrels) {
         const bool rm = retaining_move_barrels(br, bl);
 
         if (rm == false) {
+            // size of barrel after move operations was still too large
             return false;
         }
         rid--;
         lid++;
     }
     if (barrels[rid]->current_size > BARREL_CAPACITY) {
+        // size of barrel after move operations was still too large
         return false;
     } else return true;
 }
